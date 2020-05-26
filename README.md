@@ -2,49 +2,42 @@
 # Note: This project has only been tested on OSx 10.14 and 10.15
 
 This project is uses [JUCE](https://juce.com/) and
-[spleeterpp](https://github.com/gvne/spleeterpp) to make a simple application
+[spleeterpp](https://github.com/diracdeltas/spleeterpp) to make a simple application
 that runs [spleeter](https://github.com/deezer/spleeter) in c++.
 
-# Build:
+Credit for most of this work goes to https://github.com/gvne.
 
-## OSX
+## Build:
 
-Clone spleeterpp and build the install target in Release mode.  
-To generate the solution do:
-```
-SPLEETERPP_INSTALL_DIR=...
-cmake -GXcode -DCMAKE_INSTALL_PREFIX=$SPLEETERPP_INSTALL_DIR -Drtff_use_mkl=ON ..
-```
+## prerequsites
 
-In spleeter-vst project root, create a symlink to the install folder:
-```
-bash configure.sh $SPLEETERPP_INSTALL_DIR
-```
+1. Optional: download and install Intel's math kernel library. If you do not
+   install it, leave out the `Drtff_use_mkl=ON` cmake flag and remove the mlk
+   libraries from `externalLibraries` in the jucer file.
+2. Download and install JUCE
+3. On MacOS, install xcode. On Win, install Visual Studio 2017.
+4. On Win, install git-bash.
+4. `git clone https://github.com/diracdeltas/spleeterpp.git && cd spleeterpp`
+5. In bash or git-bash, set `SPLEETERPP_INSTALL_DIR=$(pwd)/install`
+6. Install anaconda from https://docs.anaconda.com/anaconda/install/. On
+   Windows, make sure that conda is in your path and the Python version that
+   comes with Conda precedes the regular system Python in your path (make sure
+   `~/anaconda3` is first in the path and `~/anaconda3/Scripts` is also in the
+   path).
 
-Then, build it with JUCE !
-xcopy "external/spleeterpp/build/install/models/filter" "C:\Users\guillaume\taff\perso\vstSpleeter\Builds\VisualStudio2019\x64\Release\Shared Code\models" /s /e
-if not exist "test" mkdir "test"
-## Windows
+## building
 
-* Clone Eigen in the external folder
-* Build spleeterpp in the external folder
-* Install the external/spleeterpp/build/install/lib/tensorflow.dll in the host application search path. The easiest is to copy it in the system directory (%SystemRoot%\\system32)
-* Install the [VST3](https://www.steinberg.net/vst3sdk) sdk in C:/SDKs
-* Open the spleeter-vst.jucer project and start the visual studio generator
-* Build with visual studio in Release mode
-
-For the first two steps, you can run the following script:
-```bash
-mkdir external && cd external
-git clone https://github.com/eigenteam/eigen-git-mirror.git eigen
-cd eigen && git checkout 3.3.7 && cd -
-
-git clone https://github.com/gvne/spleeterpp.git && cd spleeterpp
-git checkout 586a5dc503c73fc4975aca675432a280d6ea860f
-mkdir build && cd build
-cmake -Drtff_use_mkl=ON -DCMAKE_INSTALL_PREFIX=$(pwd)/install ..
-cmake --build . --config Release --target INSTALL
-cd ../..
-
-cd ..
-```
+1. on macOS: `mkdir build && cd build && cmake -GXcode -Drtff_use_mkl=ON -DCMAKE_INSTALL_PREFIX=$SPLEETERPP_INSTALL_DIR ..`. on windows, replace Xcode with ""Visual Studio 15 2017 Win64"
+2. run `cmake --build . --target install --config Release`. on MacOS, this may
+   fail if Tensorflow wasn't correctly downloaded. to fix, delete the `(NOT
+   tensorflow_lib OR NOT tensorflow_framework_lib)` condition from
+   cmake/add_tensorflow.cmake, then run step 1 again.
+3. in another folder, do `git clone https://github.com/diracdeltas/vstSpleeter.git && cd vstSpleeter`. on Windows, also do `git checkout feature/windows`
+4. `bash configure.sh $SPLEETERPP_INSTALL_DIR`
+5. open the .jucer file in projucer and click on the VS2017 or xcode icon to
+   open in your IDE.
+6. build the targets in your IDE, making sure that the scheme is set to
+   Release.
+7. on windows, copy `extras/tensorflow.dll` to `%SystemRoot%\system32` (you
+   may need to open File Explorer as administrator to do this), then run
+   postbuild.sh to package the vst3.
