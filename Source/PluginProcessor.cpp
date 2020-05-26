@@ -9,7 +9,6 @@
 */
 
 #include "PluginProcessor.h"
-#include "PluginEditor.h"
 #include "spleeter_common/spleeter_common.h"
 
 //==============================================================================
@@ -25,9 +24,12 @@ SpleetervstAudioProcessor::SpleetervstAudioProcessor()
                          )
 #endif
       ,
-      m_filter(nullptr), m_buffer(nullptr), m_vocals_volume(1.0),
-      m_bass_volume(1.0), m_drums_volume(1.0), m_piano_volume(1.0),
-      m_other_volume(1.0) {
+      m_filter(nullptr), m_buffer(nullptr) {
+
+  addParameter (m_vocals_volume = new AudioParameterFloat("m_vocals_volume", "Vocals", 0.0f, 1.0f, 1.0f));
+  addParameter (m_drums_volume = new AudioParameterFloat("m_drums_volume", "Drums", 0.0f, 1.0f, 1.0f));
+  addParameter (m_bass_volume = new AudioParameterFloat("m_bass_volume", "Bass", 0.0f, 1.0f, 1.0f));
+  addParameter (m_other_volume = new AudioParameterFloat("m_other_volume", "Other", 0.0f, 1.0f, 1.0f));
 
   std::error_code err;
   auto models_path =
@@ -41,9 +43,9 @@ SpleetervstAudioProcessor::SpleetervstAudioProcessor()
           .getFullPathName();
 
   spleeter::Initialize(models_path.toStdString(),
-                       {spleeter::SeparationType::FiveStems}, err);
+                       {spleeter::SeparationType::FourStems}, err);
   m_filter =
-      std::make_shared<spleeter::Filter>(spleeter::SeparationType::FiveStems);
+      std::make_shared<spleeter::Filter>(spleeter::SeparationType::FourStems);
   m_filter->set_extra_frame_latency(10);  // TODO: might be a lot...
   m_filter->Init(err);
 }
@@ -112,62 +114,15 @@ void SpleetervstAudioProcessor::prepareToPlay(double sampleRate,
   m_interpolation_ratio = static_cast<float>(block_size) / samplesPerBlock;
   
   // Initialize the buffer
-  m_filter->set_volume(0, m_vocals_volume);
-  m_filter->set_volume(1, m_drums_volume);
-  m_filter->set_volume(2, m_bass_volume);
-  m_filter->set_volume(3, m_piano_volume);
-  m_filter->set_volume(4, m_other_volume);
+  m_filter->set_volume(0, 1.0);
+  m_filter->set_volume(1, 1.0);
+  m_filter->set_volume(2, 1.0);
+  m_filter->set_volume(3, 1.0);
   m_filter->set_block_size(block_size);
   m_buffer = std::make_shared<rtff::AudioBuffer>(block_size, 2);
   
   // Latency
   setLatencySamples(m_filter->FrameLatency() * (1.0 / m_interpolation_ratio));
-}
-
-void SpleetervstAudioProcessor::setVocalsVolume(double value) {
-  m_vocals_volume = value;
-  if (m_filter) {
-    m_filter->set_volume(0, m_vocals_volume);
-  }
-}
-double SpleetervstAudioProcessor::getVocalsVolume() const {
-  return m_vocals_volume;
-}
-void SpleetervstAudioProcessor::setBassVolume(double value) {
-  m_bass_volume = value;
-  if (m_filter) {
-    m_filter->set_volume(2, m_bass_volume);
-  }
-}
-double SpleetervstAudioProcessor::getBassVolume() const {
-  return m_bass_volume;
-}
-void SpleetervstAudioProcessor::setDrumsVolume(double value) {
-  m_drums_volume = value;
-  if (m_filter) {
-    m_filter->set_volume(1, m_drums_volume);
-  }
-}
-double SpleetervstAudioProcessor::getDrumsVolume() const {
-  return m_drums_volume;
-}
-void SpleetervstAudioProcessor::setPianoVolume(double value) {
-  m_piano_volume = value;
-  if (m_filter) {
-    m_filter->set_volume(3, m_piano_volume);
-  }
-}
-double SpleetervstAudioProcessor::getPianoVolume() const {
-  return m_piano_volume;
-}
-void SpleetervstAudioProcessor::setOtherVolume(double value) {
-  m_other_volume = value;
-  if (m_filter) {
-    m_filter->set_volume(4, m_other_volume);
-  }
-}
-double SpleetervstAudioProcessor::getOtherVolume() const {
-  return m_other_volume;
 }
 
 void SpleetervstAudioProcessor::releaseResources() {
@@ -249,6 +204,10 @@ void SpleetervstAudioProcessor::processBlock(AudioBuffer<float> &buffer,
   }
   
   // convert to stereo
+  m_filter->set_volume(0, static_cast<double>(m_vocals_volume->get()));
+  m_filter->set_volume(1, static_cast<double>(m_drums_volume->get()));
+  m_filter->set_volume(2, static_cast<double>(m_bass_volume->get()));
+  m_filter->set_volume(3, static_cast<double>(m_other_volume->get()));
   m_filter->ProcessBlock(m_buffer.get());
   
   if (totalNumInputChannels == 2) {
@@ -273,11 +232,11 @@ void SpleetervstAudioProcessor::processBlock(AudioBuffer<float> &buffer,
 
 //==============================================================================
 bool SpleetervstAudioProcessor::hasEditor() const {
-  return true; // (change this to false if you choose to not supply an editor)
+  return false; // (change this to false if you choose to not supply an editor)
 }
 
 AudioProcessorEditor *SpleetervstAudioProcessor::createEditor() {
-  return new SpleetervstAudioProcessorEditor(*this);
+  return nullptr;
 }
 
 //==============================================================================
@@ -285,6 +244,10 @@ void SpleetervstAudioProcessor::getStateInformation(MemoryBlock &destData) {
   // You should use this method to store your parameters in the memory block.
   // You could do that either as raw data, or use the XML or ValueTree classes
   // as intermediaries to make it easy to save and load complex data.
+  MemoryOutputStream (destData, true).writeFloat (*m_vocals_volume);
+  MemoryOutputStream (destData, true).writeFloat (*m_bass_volume);
+  MemoryOutputStream (destData, true).writeFloat (*m_drums_volume);
+  MemoryOutputStream (destData, true).writeFloat (*m_other_volume);
 }
 
 void SpleetervstAudioProcessor::setStateInformation(const void *data,
@@ -292,6 +255,10 @@ void SpleetervstAudioProcessor::setStateInformation(const void *data,
   // You should use this method to restore your parameters from this memory
   // block,
   // whose contents will have been created by the getStateInformation() call.
+  m_vocals_volume->setValueNotifyingHost (MemoryInputStream (data, static_cast<size_t> (sizeInBytes), false).readFloat());
+  m_bass_volume->setValueNotifyingHost (MemoryInputStream (data, static_cast<size_t> (sizeInBytes), false).readFloat());
+  m_drums_volume->setValueNotifyingHost (MemoryInputStream (data, static_cast<size_t> (sizeInBytes), false).readFloat());
+  m_other_volume->setValueNotifyingHost (MemoryInputStream (data, static_cast<size_t> (sizeInBytes), false).readFloat());
 }
 
 //==============================================================================
